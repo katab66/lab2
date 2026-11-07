@@ -1,0 +1,219 @@
+git --version
+git lfs version
+git config --global user.name "Бараусова Екатерина"
+git config --global user.email "isip_e.a.barausova@mpt.ru"
+
+mkdir git-lab-2 && cd git-lab-2
+git init -b main
+git remote add origin <URL_MAIN>
+
+cat > README.md <<'EOT'
+# Git Lab 2
+
+Автор: Фамилия Имя Отчество
+
+Учебный проект: комплексная работа по Git.
+EOT
+
+cat > index.html <<'EOT'
+<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="UTF-8"><title>Git Lab 2</title></head>
+<body>
+<h1>Git Lab 2</h1>
+<p>Комплексная работа по Git</p>
+</body>
+</html>
+EOT
+
+git add README.md index.html
+git commit -m "Initial commit: README and index.html"
+git push -u origin main
+
+git switch -c feature/page
+sed -i 's|<h1>Git Lab 2</h1>|<h1>Feature Title</h1>|' index.html
+git commit -am "Change title to Feature Title"
+git branch -m feature/title
+
+git switch main
+sed -i 's|<h1>Git Lab 2</h1>|<h1>Main Title</h1>|' index.html
+git commit -am "Change title to Main Title"
+
+git merge feature/title          # будет конфликт
+git status
+cat index.html                   # маркеры <<<<<<< ======= >>>>>>>
+
+git merge --abort
+git status
+git merge feature/title          # конфликт снова
+
+awk '/^<<<<<<< /{print "<h1>Main Feature Title</h1>"; skip=1; next} /^>>>>>>> /{skip=0; next} skip{next} {print}' index.html > i.tmp && mv i.tmp index.html
+cat index.html
+
+echo "Temporary change" >> README.md
+git diff README.md
+git add README.md
+git diff --staged
+git status
+git restore --staged README.md
+git status
+git restore README.md
+git status
+
+echo "Draft documentation" >> README.md
+git stash
+git stash list
+git status
+
+git switch -c hotfix/text
+sed -i 's|<p>Комплексная работа по Git</p>|<p>Учебный проект Git</p>|' index.html
+git commit -am "Fix paragraph text"
+
+git switch main
+git merge hotfix/text
+git stash pop
+tail -n 2 README.md
+git commit -am "Add draft documentation"
+git branch -d hotfix/text
+git push
+
+git log --oneline -- index.html
+git diff <HASH_1> <HASH_2> -- index.html     # хэши из строки выше
+git blame index.html
+
+
+echo "Incorrect project description" >> README.md
+git commit -am "Add incorrect project description"
+git log --oneline -1                          # запишите хэш
+git push
+git revert --no-edit <HASH>
+git push
+git log --oneline -5
+
+git switch -c practice/history
+echo "First part" > history.txt
+git add history.txt
+git commit -m "Add history file"
+git log --oneline -1                          # хэш ДО amend
+echo "Missing part" >> history.txt
+git add history.txt
+git commit --amend --no-edit
+git log --oneline -1                          # хэш ПОСЛЕ amend
+git show HEAD:history.txt
+
+echo "Mixed experiment" >> history.txt
+git commit -am "Add mixed experiment"
+git reset --mixed HEAD~1
+git rev-parse --short HEAD
+git status
+cat history.txt
+git reset --hard
+git status
+
+echo "Hard experiment" >> history.txt
+git commit -am "Add hard experiment"
+git reset --hard HEAD~1
+git rev-parse --short HEAD
+git status
+cat history.txt
+
+git switch main
+git status -sb
+
+
+cd ..
+mkdir lab-common && cd lab-common
+git init -b main
+git remote add origin <URL_SHARED>
+echo "# lab-common" > README.md
+echo "1.0" > VERSION.txt
+git add README.md VERSION.txt
+git commit -m "Initial commit: README and VERSION 1.0"
+git push -u origin main
+git rev-parse HEAD                            # это S1
+
+
+cd ../git-lab-2
+git submodule add <URL_SHARED> shared/lab-common
+cat .gitmodules
+git status
+git commit -m "Add lab-common submodule"
+git push
+git submodule status
+git rev-parse HEAD                            # коммит основного проекта
+
+cd ..
+git clone <URL_MAIN> lab-verify
+cd lab-verify
+git submodule update --init
+git submodule status
+cat shared/lab-common/VERSION.txt             # 1.0
+
+
+
+cd ../git-lab-2/shared/lab-common
+git switch main
+echo "2.0" > VERSION.txt
+git commit -am "Bump version to 2.0"
+git push origin main
+git rev-parse HEAD                            # это S2
+
+cd ../../../lab-verify
+git submodule update --remote
+cat shared/lab-common/VERSION.txt             # 2.0
+git status
+git submodule update
+cat shared/lab-common/VERSION.txt             # снова 1.0
+
+cd ../git-lab-2
+git add shared/lab-common
+git commit -m "Update lab-common submodule to 2.0"
+git push
+
+cd ../lab-verify
+git pull
+git submodule update
+git submodule status
+cat shared/lab-common/VERSION.txt             # 2.0
+git status
+
+cd ../git-lab-2
+git switch -c practice/remove-submodule
+git -C shared/lab-common status --short       # должно быть пусто
+git rm shared/lab-common
+git commit -m "Remove lab-common submodule (practice)"
+git show HEAD
+
+git switch main
+git submodule update --init
+git submodule status
+cat shared/lab-common/VERSION.txt             # 2.0
+
+
+
+git lfs install
+git lfs track "*.bin"
+fsutil file createnew ./bigfile.bin 268435456
+# если fsutil не сработал: head -c 268435456 /dev/zero > bigfile.bin
+wc -c < ./bigfile.bin
+
+cat .gitattributes
+git add .gitattributes bigfile.bin
+git commit -m "Add binary file with LFS"
+git push
+
+git lfs ls-files
+git show HEAD:bigfile.bin
+sha256sum ./bigfile.bin                       # запишите
+
+cd ..
+git clone <URL_MAIN> lab-final
+cd lab-final
+git submodule update --init
+git lfs pull
+wc -c < ./bigfile.bin                         # 268435456
+sha256sum ./bigfile.bin                       # должен совпасть
+git lfs ls-files
+cat shared/lab-common/VERSION.txt             # 2.0
+git status
+git -C shared/lab-common status
